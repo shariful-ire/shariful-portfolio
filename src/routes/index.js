@@ -3,6 +3,9 @@ import sectionRoutes from "./section.routes.js";
 import themeRoutes from "./theme.routes.js";
 import mediaRoutes from "./media.routes.js";
 import blogRoutes from "./blog.routes.js";
+import productRoutes from "./product.routes.js";
+import couponRoutes from "./coupon.routes.js";
+import orderRoutes from "./order.routes.js";
 
 const router = Router();
 
@@ -11,5 +14,8 @@ router.use("/sections", sectionRoutes);
 router.use("/themes", themeRoutes);
 router.use("/media", mediaRoutes);
 router.use("/blog", blogRoutes);
+router.use("/products", productRoutes);
+router.use("/coupons", couponRoutes);
+router.use("/orders", orderRoutes);
 
 export default router;
