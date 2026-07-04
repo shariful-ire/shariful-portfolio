@@ -3,8 +3,15 @@ import mongoose from "mongoose";
 const { Schema } = mongoose;
 
 /**
+ * @typedef {Object} FieldDef - one field in a "custom" section's admin-defined schema
+ * @property {string} key - content object key, kebab/camelCase identifier
+ * @property {string} label
+ * @property {"text"|"textarea"|"number"|"boolean"|"url"|"image"|"richtext"|"list"} type
+ * @property {boolean} required
+ * @property {string} [placeholder]
+ *
  * @typedef {Object} SectionDoc
- * @property {string} type - "hero"|"about"|"skills"|"projects"|"contact"|"blog"|"research"|"gallery"|"testimonials"|"experience"|"certifications"|"startup"|"business"
+ * @property {string} type - "hero"|"about"|"skills"|"projects"|"contact"|"blog"|"research"|"gallery"|"testimonials"|"experience"|"certifications"|"startup"|"business"|"custom"
  * @property {string} slug
  * @property {number} order
  * @property {boolean} isVisible
@@ -14,7 +21,8 @@ const { Schema } = mongoose;
  * @property {Record<string, any>} layoutConfig
  * @property {string[]} enabledComponents
  * @property {Record<string, string>} [themeOverride] - token overrides for this section only
- * @property {Record<string, any>} content - shape depends on `type`, validated by Zod at the boundary
+ * @property {FieldDef[]} [fieldSchema] - only for type "custom"; drives both the admin form and public render
+ * @property {Record<string, any>} content - shape depends on `type` (or `fieldSchema` when custom), validated by Zod at the boundary
  */
 
 const sectionSchema = new Schema(
@@ -36,6 +44,7 @@ const sectionSchema = new Schema(
         "certifications",
         "startup",
         "business",
+        "custom",
       ],
     },
     slug: { type: String, required: true, unique: true, trim: true },
@@ -51,6 +60,23 @@ const sectionSchema = new Schema(
     layoutConfig: { type: Schema.Types.Mixed, default: {} },
     enabledComponents: { type: [String], default: [] },
     themeOverride: { type: Schema.Types.Mixed, default: null },
+    fieldSchema: {
+      type: [
+        {
+          _id: false,
+          key: { type: String, required: true },
+          label: { type: String, required: true },
+          type: {
+            type: String,
+            enum: ["text", "textarea", "number", "boolean", "url", "image", "richtext", "list"],
+            required: true,
+          },
+          required: { type: Boolean, default: false },
+          placeholder: { type: String },
+        },
+      ],
+      default: undefined,
+    },
     content: { type: Schema.Types.Mixed, default: {} },
   },
   { timestamps: true }

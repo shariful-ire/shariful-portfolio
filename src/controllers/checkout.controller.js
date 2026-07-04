@@ -24,12 +24,12 @@ export async function checkout(req, res, next) {
       return res.json({ data: { url: session.url, orderId: order._id } });
     }
 
+    order.paymentRef = `order_${order._id}`;
+    await order.save();
     const gatewayUrl = await initiateSslcommerzSession(order, {
       name: req.user.name,
       email: req.user.email,
     });
-    order.paymentRef = order._id.toString();
-    await order.save();
     res.json({ data: { url: gatewayUrl, orderId: order._id } });
   } catch (err) {
     next(err);

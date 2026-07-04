@@ -33,6 +33,31 @@ export async function createStripeCheckoutSession(order) {
   return session;
 }
 
+/**
+ * @param {import('../models/Contribution.model.js').ContributionDoc & {_id: any}} contribution
+ * @param {import('../models/Campaign.model.js').CampaignDoc} campaign
+ */
+export async function createStripeContributionSession(contribution, campaign) {
+  const session = await stripe.checkout.sessions.create({
+    mode: "payment",
+    line_items: [
+      {
+        price_data: {
+          currency: contribution.currency,
+          product_data: { name: `Contribution to ${campaign.title}` },
+          unit_amount: contribution.amount,
+        },
+        quantity: 1,
+      },
+    ],
+    metadata: { contributionId: contribution._id.toString() },
+    success_url: `${process.env.CLIENT_ORIGIN}/campaigns/${campaign.slug}/success?contribution=${contribution._id}`,
+    cancel_url: `${process.env.CLIENT_ORIGIN}/campaigns/${campaign.slug}?cancelled=1`,
+  });
+
+  return session;
+}
+
 /** Stripe coupons aren't "amount off this order" natively per-session, so mint a one-off amount-off coupon. */
 async function ensureStripeAdHocCoupon(amountOff, currency) {
   const coupon = await stripe.coupons.create({

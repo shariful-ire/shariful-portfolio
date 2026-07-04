@@ -7,6 +7,7 @@ import {
   updateSection,
   deleteSection,
   reorderSections,
+  duplicateSection,
 } from "../controllers/section.controller.js";
 
 const router = Router();
@@ -26,6 +27,12 @@ router.post(
   requireAuth,
   requireRole("editor", "admin"),
   reorderSections
+);
+router.post(
+  "/:id/duplicate",
+  requireAuth,
+  requireRole("editor", "admin"),
+  duplicateSection
 );
 router.delete("/:id", requireAuth, requireRole("admin"), deleteSection);
 

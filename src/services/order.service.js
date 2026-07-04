@@ -2,6 +2,7 @@ import { Product } from "../models/Product.model.js";
 import { Order } from "../models/Order.model.js";
 import { Coupon } from "../models/Coupon.model.js";
 import { ApiError } from "../middleware/errorHandler.js";
+import { notify } from "../lib/notify.js";
 
 /**
  * @param {{ productId: string, quantity: number }[]} cartItems
@@ -110,6 +111,12 @@ export async function markOrderPaid(orderId) {
       { $inc: { stock: -item.quantity } }
     );
   }
+
+  notify({
+    type: "order",
+    message: `New paid order — ${order.total / 100} ${order.currency.toUpperCase()}`,
+    link: `/dashboard/orders`,
+  });
 
   return order;
 }

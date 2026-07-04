@@ -6,6 +6,9 @@ import blogRoutes from "./blog.routes.js";
 import productRoutes from "./product.routes.js";
 import couponRoutes from "./coupon.routes.js";
 import orderRoutes from "./order.routes.js";
+import campaignRoutes from "./campaign.routes.js";
+import analyticsRoutes from "./analytics.routes.js";
+import notificationRoutes from "./notification.routes.js";
 
 const router = Router();
 
@@ -17,5 +20,8 @@ router.use("/blog", blogRoutes);
 router.use("/products", productRoutes);
 router.use("/coupons", couponRoutes);
 router.use("/orders", orderRoutes);
+router.use("/campaigns", campaignRoutes);
+router.use("/analytics", analyticsRoutes);
+router.use("/notifications", notificationRoutes);
 
 export default router;

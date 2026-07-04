@@ -43,14 +43,37 @@ export async function createSection(req, res, next) {
 
 export async function updateSection(req, res, next) {
   try {
-    const parsed = parseSectionUpdate(req.body);
-    const section = await Section.findByIdAndUpdate(req.params.id, parsed, {
-      new: true,
-      runValidators: true,
-    });
-    if (!section) throw new ApiError(404, "Section not found");
+    const existing = await Section.findById(req.params.id);
+    if (!existing) throw new ApiError(404, "Section not found");
+
+    const parsed = parseSectionUpdate(req.body, existing.fieldSchema);
+    Object.assign(existing, parsed);
+    await existing.save();
     revalidateTag(TAG);
-    res.json({ data: section });
+    res.json({ data: existing });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/** Clones a section (new slug, unpublished) so the admin can tweak a copy without touching the original. */
+export async function duplicateSection(req, res, next) {
+  try {
+    const original = await Section.findById(req.params.id).lean();
+    if (!original) throw new ApiError(404, "Section not found");
+
+    const { _id, createdAt, updatedAt, ...rest } = original;
+    const maxOrder = await Section.findOne().sort({ order: -1 }).select("order").lean();
+
+    const copy = await Section.create({
+      ...rest,
+      slug: `${original.slug}-copy-${Date.now().toString(36)}`,
+      order: (maxOrder?.order ?? 0) + 1,
+      isPublished: false,
+    });
+
+    revalidateTag(TAG);
+    res.status(201).json({ data: copy });
   } catch (err) {
     next(err);
   }

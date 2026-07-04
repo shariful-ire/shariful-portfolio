@@ -8,6 +8,7 @@ import {
 } from "../validation/blog.schema.js";
 import { ApiError } from "../middleware/errorHandler.js";
 import { cached, revalidateTag } from "../lib/cache.js";
+import { notify } from "../lib/notify.js";
 
 const TAG = "blog";
 
@@ -118,6 +119,11 @@ export async function createComment(req, res, next) {
     post.commentCount += 1;
     await post.save();
     const populated = await comment.populate("author", "name image");
+    notify({
+      type: "comment",
+      message: `New comment on "${post.title}"`,
+      link: `/dashboard/blog/${post._id}/edit`,
+    });
     res.status(201).json({ data: populated });
   } catch (err) {
     next(err);

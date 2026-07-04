@@ -136,6 +136,56 @@ const blogContentSchema = z.object({
   postCount: z.number().int().min(1).max(12).optional().default(3),
 });
 
+export const fieldDefSchema = z.object({
+  key: z
+    .string()
+    .min(1)
+    .max(60)
+    .regex(/^[a-zA-Z][a-zA-Z0-9_]*$/, "key must be a valid identifier"),
+  label: z.string().min(1).max(120),
+  type: z.enum(["text", "textarea", "number", "boolean", "url", "image", "richtext", "list"]),
+  required: z.boolean().default(false),
+  placeholder: z.string().max(200).optional(),
+});
+
+export const fieldSchemaArraySchema = z
+  .array(fieldDefSchema)
+  .min(1, "Add at least one field")
+  .refine(
+    (fields) => new Set(fields.map((f) => f.key)).size === fields.length,
+    "Field keys must be unique"
+  );
+
+/** Maps a field-builder type to its base Zod schema (before required/default is layered on). */
+const FIELD_TYPE_SCHEMAS = {
+  text: () => z.string().max(500),
+  textarea: () => z.string().max(5000),
+  richtext: () => z.string().max(20000),
+  number: () => z.coerce.number(),
+  boolean: () => z.coerce.boolean(),
+  url: () => z.string().url().or(z.literal("")),
+  image: () => z.string().url().or(z.literal("")),
+  list: () => z.array(z.string().max(200)).default([]),
+};
+
+/**
+ * Builds a Zod object schema from an admin-defined field list — this is
+ * what makes the "custom" section type validate its content the same way
+ * every fixed type does, without a fixed shape baked into the code.
+ * @param {Array<import('zod').infer<typeof fieldDefSchema>>} fields
+ */
+export function buildDynamicContentSchema(fields) {
+  const shape = {};
+  for (const field of fields) {
+    let fieldSchema = FIELD_TYPE_SCHEMAS[field.type]();
+    if (!field.required && field.type !== "list") {
+      fieldSchema = fieldSchema.optional().default(field.type === "boolean" ? false : "");
+    }
+    shape[field.key] = fieldSchema;
+  }
+  return z.object(shape);
+}
+
 /** @type {Record<string, z.ZodTypeAny>} */
 export const sectionContentSchemas = {
   hero: heroContentSchema,
@@ -173,6 +223,7 @@ const sectionTypeSchema = z.enum([
   "certifications",
   "startup",
   "business",
+  "custom",
 ]);
 
 export const sectionBaseSchema = z.object({
@@ -190,15 +241,29 @@ export const sectionBaseSchema = z.object({
   layoutConfig: z.record(z.any()).default({}),
   enabledComponents: z.array(z.string()).default([]),
   themeOverride: z.record(z.string()).nullable().default(null),
+  fieldSchema: fieldSchemaArraySchema.optional(),
 });
 
 /**
  * Validates a full section payload, including `content` against the
- * schema registered for its `type`. Throws a ZodError on failure.
+ * schema registered for its `type` — or, for "custom" sections, against
+ * a schema built on the fly from the admin-defined `fieldSchema`.
+ * Throws a ZodError on failure.
  * @param {unknown} input
  */
 export function parseSectionInput(input) {
   const base = sectionBaseSchema.parse(input);
+
+  if (base.type === "custom") {
+    if (!base.fieldSchema?.length) {
+      throw new Error("Custom sections require a non-empty fieldSchema");
+    }
+    const content = buildDynamicContentSchema(base.fieldSchema).parse(
+      /** @type {any} */ (input)?.content ?? {}
+    );
+    return { ...base, content };
+  }
+
   const contentSchema = sectionContentSchemas[base.type];
   const content = contentSchema.parse(
     /** @type {any} */ (input)?.content ?? {}
@@ -206,17 +271,33 @@ export function parseSectionInput(input) {
   return { ...base, content };
 }
 
-/** Partial version for PATCH-style updates. */
-export function parseSectionUpdate(input) {
+/**
+ * Partial version for PATCH-style updates. For "custom" sections, pass the
+ * section's *current* `fieldSchema` as `existingFieldSchema` when the patch
+ * itself doesn't include one, so content can still be validated against it.
+ * @param {unknown} input
+ * @param {Array<any>} [existingFieldSchema]
+ */
+export function parseSectionUpdate(input, existingFieldSchema) {
   const base = sectionBaseSchema.partial().parse(input);
-  if (/** @type {any} */ (input)?.content !== undefined) {
-    const type = base.type;
-    const contentSchema = type
-      ? sectionContentSchemas[type]
-      : z.record(z.any());
-    base.content = contentSchema.partial
-      ? contentSchema.partial().parse(/** @type {any} */ (input).content)
-      : contentSchema.parse(/** @type {any} */ (input).content);
+  const hasContent = /** @type {any} */ (input)?.content !== undefined;
+  if (!hasContent) return base;
+
+  const type = base.type;
+  if (type === "custom" || (!type && existingFieldSchema)) {
+    const fields = base.fieldSchema || existingFieldSchema;
+    if (!fields?.length) {
+      throw new Error("Custom sections require a non-empty fieldSchema");
+    }
+    base.content = buildDynamicContentSchema(fields)
+      .partial()
+      .parse(/** @type {any} */ (input).content);
+    return base;
   }
+
+  const contentSchema = type ? sectionContentSchemas[type] : z.record(z.any());
+  base.content = contentSchema.partial
+    ? contentSchema.partial().parse(/** @type {any} */ (input).content)
+    : contentSchema.parse(/** @type {any} */ (input).content);
   return base;
 }
